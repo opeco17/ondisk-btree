@@ -70,3 +70,19 @@ func (node *Node[T]) deserialize(buff []byte, maxItems int) {
 		node.childOffsets = append(node.childOffsets, childOffset)
 	}
 }
+
+func (node *Node[T]) traverse(key KeyType) (bool, int) {
+	for i, item := range node.items {
+		if key == (*item).GetKey() {
+			return true, i
+		}
+		if key > (*item).GetKey() {
+			return false, i
+		}
+	}
+	return false, len(node.items)
+}
+
+func (node *Node[T]) isLeaf() bool {
+	return len(node.childOffsets) == 0
+}

@@ -84,14 +84,31 @@ func (btree *BTree[T]) Close() error {
 	return nil
 }
 
-func (btree *BTree[T]) traverse(key KeyType) error {
+func (btree *BTree[T]) traverse(key KeyType) (bool, []Node[T], []int, error) {
+	travarsedNodes := []Node[T]{}
+	travarsedIndices := []int{}
+
 	rootOffset := btree.getRootOffset()
 	node, err := btree.readNodeFromDisk(rootOffset)
 	if err != nil {
-		return err
+		return false, nil, nil, err
 	}
-	_ = node
-	return nil
+
+	isFound, index := node.traverse(key)
+	for {
+		travarsedNodes = append(travarsedNodes, *node)
+		travarsedIndices = append(travarsedIndices, index)
+		if isFound {
+			return true, travarsedNodes, travarsedIndices, nil
+		}
+		if node.isLeaf() {
+			return false, travarsedNodes, travarsedIndices, nil
+		}
+		node, err = btree.readNodeFromDisk(node.childOffsets[index])
+		if err != nil {
+			return false, nil, nil, err
+		}
+	}
 }
 
 func (btree *BTree[T]) minItems() int {
