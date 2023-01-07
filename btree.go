@@ -62,7 +62,6 @@ func (btree *BTree[T]) Put(item *T) error {
 		return errors.New("Tree is already closed")
 	}
 	element := newElement(item)
-	element.item = item
 
 	isFound, travarsedNodes, travarsedIndices, travarsedOffsets, err := btree.traverse(element.getKey())
 	if err != nil {

@@ -7,6 +7,7 @@ type Element[T Item] struct {
 
 func newElement[T Item](item *T) *Element[T] {
 	element := new(Element[T])
+	element.item = item
 	element.isClosed = false
 	return element
 }
