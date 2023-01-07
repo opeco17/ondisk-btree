@@ -14,4 +14,7 @@ func TestBTree(t *testing.T) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	for i := 0; i < 100; i++ {
+		btree.Put(&Sample{Int: i})
+	}
 }
