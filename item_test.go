@@ -22,8 +22,8 @@ type Sample struct {
 	String     string
 }
 
-func (sample Sample) GetKey() int64 {
-	return int64(sample.Int)
+func (item Sample) GetKey() int64 {
+	return int64(item.Int)
 }
 
 type InvalidSample struct {
@@ -31,18 +31,18 @@ type InvalidSample struct {
 	Strings []string
 }
 
-func (invalidSample InvalidSample) GetKey() int64 {
-	return int64(invalidSample.Int)
+func (item InvalidSample) GetKey() int64 {
+	return int64(item.Int)
 }
 
 func TestItem(t *testing.T) {
 	t.Run("Test serializeItem and deserializeItem", func(t *testing.T) {
 		str := "hello, world"
-		sample := new(Sample)
-		sample.String = str
-		deserializedSample := deserializeItem[Sample](serializeItem(sample))
-		if deserializedSample.String != str {
-			t.Errorf("string field should be %s\n", str)
+		item := new(Sample)
+		item.String = str
+		deserializedItem := deserializeItem[Sample](serializeItem(item))
+		if deserializedItem.String != str {
+			t.Errorf("string field should be %s", str)
 		}
 	})
 	t.Run("Test isValidItemFields", func(t *testing.T) {
@@ -54,15 +54,15 @@ func TestItem(t *testing.T) {
 		}
 	})
 	t.Run("Test isValidStringLength", func(t *testing.T) {
-		sample := new(Sample)
-		sample.String = "Not long"
-		if err := isValidStringLength(sample); err != nil {
+		item := new(Sample)
+		item.String = "Not long"
+		if err := isValidStringLength(item); err != nil {
 			t.Errorf("Error should not be raised")
 		}
 
-		invalidSample := new(Sample)
-		invalidSample.String = "Very loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong"
-		if err := isValidStringLength(invalidSample); err == nil {
+		invalidItem := new(Sample)
+		invalidItem.String = "Very loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong"
+		if err := isValidStringLength(invalidItem); err == nil {
 			t.Errorf("Error should be raised")
 		}
 	})

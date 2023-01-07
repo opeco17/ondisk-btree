@@ -9,9 +9,10 @@ func TestNode(t *testing.T) {
 		node := new(Node[Sample])
 		maxItems := 10
 		for i := 0; i < 3; i++ {
-			sample := new(Sample)
-			sample.Int = i
-			node.items = append(node.items, sample)
+			item := new(Sample)
+			item.Int = i
+			element := Element[Sample]{item: item}
+			node.elements = append(node.elements, element)
 		}
 		for i := 0; i < 4; i++ {
 			node.childOffsets = append(node.childOffsets, int64(i))
@@ -21,7 +22,7 @@ func TestNode(t *testing.T) {
 		deserializedNode := new(Node[Sample])
 		deserializedNode.deserialize(buff, maxItems)
 		for i := 0; i < 3; i++ {
-			if deserializedNode.items[i].Int != i {
+			if deserializedNode.elements[i].item.Int != i {
 				t.Errorf("deserializedNode.items[%d].Int should be %d", i, i)
 			}
 		}
@@ -35,9 +36,10 @@ func TestNode(t *testing.T) {
 		node := new(Node[Sample])
 		maxItems := 10
 		for i := 0; i < maxItems-1; i++ {
-			sample := new(Sample)
-			sample.Int = i
-			node.items = append(node.items, sample)
+			item := new(Sample)
+			item.Int = i
+			element := Element[Sample]{item: item}
+			node.elements = append(node.elements, element)
 		}
 		for i := 0; i < maxItems; i++ {
 			node.childOffsets = append(node.childOffsets, int64(i))
@@ -47,7 +49,7 @@ func TestNode(t *testing.T) {
 		deserializedNode := new(Node[Sample])
 		deserializedNode.deserialize(buff, maxItems)
 		for i := 0; i < maxItems-1; i++ {
-			if deserializedNode.items[i].Int != i {
+			if deserializedNode.elements[i].item.Int != i {
 				t.Errorf("deserializedNode.items[%d].Int should be %d", i, i)
 			}
 		}
