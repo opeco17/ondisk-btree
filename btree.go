@@ -15,9 +15,12 @@ type BTree[T Item] struct {
 	fp       *os.File
 }
 
-func New[T Item](path string) (*BTree[T], error) {
+func New[T Item](path string, degree int) (*BTree[T], error) {
 	if path == "" {
 		return nil, errors.New("Parameter 'path' should not be empty")
+	}
+	if degree <= 1 {
+		return nil, errors.New("Parameter 'degree' should greater than 1")
 	}
 	if err := isValidItemFields[T](); err != nil {
 		return nil, err
@@ -25,7 +28,7 @@ func New[T Item](path string) (*BTree[T], error) {
 
 	btree := new(BTree[T])
 	btree.path = path
-	btree.degree = TREE_DEGREE
+	btree.degree = degree
 
 	fp, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0660)
 	if err != nil {
@@ -50,11 +53,30 @@ func New[T Item](path string) (*BTree[T], error) {
 	return btree, nil
 }
 
+func (btree *BTree[T]) Show() error {
+	if err := btree.show(btree.getRootOffset(), true); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (btree *BTree[T]) Get(key KeyType) (*T, error) {
 	if !btree.isOpen {
 		return nil, errors.New("Tree is already closed")
 	}
-	return nil, nil
+
+	isFound, traversedNodes, traversedIndices, _, err := btree.traverse(key)
+	if err != nil {
+		return nil, err
+	}
+	if !isFound {
+		return nil, errors.New(fmt.Sprintf("Item with key %d is not found", key))
+	}
+	element := traversedNodes[len(traversedNodes)-1].elements[traversedIndices[len(traversedNodes)-1]]
+	if element.isClosed {
+		return nil, errors.New(fmt.Sprintf("Item with key %d is not found", key))
+	}
+	return element.item, nil
 }
 
 func (btree *BTree[T]) Put(item *T) error {
@@ -63,17 +85,17 @@ func (btree *BTree[T]) Put(item *T) error {
 	}
 	element := newElement(item)
 
-	isFound, travarsedNodes, travarsedIndices, travarsedOffsets, err := btree.traverse(element.getKey())
+	isFound, traversedNodes, traversedIndices, traversedOffsets, err := btree.traverse(element.getKey())
 	if err != nil {
 		return err
 	}
 	if isFound {
-		if err = btree.update(element, travarsedNodes, travarsedIndices, travarsedOffsets); err != nil {
+		if err = btree.update(element, traversedNodes, traversedIndices, traversedOffsets); err != nil {
 			return err
 		}
 		return nil
 	} else {
-		if err = btree.insert(element, travarsedNodes, travarsedIndices, travarsedOffsets); err != nil {
+		if err = btree.insert(element, traversedNodes, traversedIndices, traversedOffsets); err != nil {
 			return err
 		}
 		return nil
@@ -99,27 +121,104 @@ func (btree *BTree[T]) Close() error {
 	return nil
 }
 
-func (btree *BTree[T]) update(element *Element[T], travarsedNodes []Node[T], travarsedIndices []int, travarsedOffsets []OffsetType) error {
-	numberOfTravarse := len(travarsedNodes)
-	node := travarsedNodes[numberOfTravarse-1]
-	index := travarsedIndices[numberOfTravarse-1]
-	offset := travarsedOffsets[numberOfTravarse-1]
+func (btree *BTree[T]) show(offset OffsetType, isRoot bool) error {
+	node, err := btree.readNodeFromDisk(offset)
+	if err != nil {
+		return err
+	}
+	node.print(offset, isRoot)
+	for _, childOffset := range node.childOffsets {
+		if err = btree.show(childOffset, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	node.elements[index] = *element
-	if err := btree.writeNodeToDisk(&node, offset); err != nil {
+func (btree *BTree[T]) update(element *Element[T], traversedNodes []*Node[T], traversedIndices []int, traversedOffsets []OffsetType) error {
+	numberOfTraverse := len(traversedNodes)
+	node := traversedNodes[numberOfTraverse-1]
+	index := traversedIndices[numberOfTraverse-1]
+	offset := traversedOffsets[numberOfTraverse-1]
+
+	node.elements[index] = element
+	if err := btree.writeNodeToDisk(node, offset); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (btree *BTree[T]) insert(element *Element[T], travarsedNodes []Node[T], travarsedIndices []int, travarsedOffsets []OffsetType) error {
+func (btree *BTree[T]) insert(element *Element[T], traversedNodes []*Node[T], traversedIndices []int, traversedOffsets []OffsetType) error {
+	leafNode := traversedNodes[len(traversedNodes)-1]
+	leafIndex := traversedIndices[len(traversedNodes)-1]
+	leafOffset := traversedOffsets[len(traversedNodes)-1]
+	leafNode.insertElement(element, leafIndex)
+
+	if !leafNode.isOverPopulated(btree.maxElements()) {
+		btree.writeNodeToDisk(leafNode, leafOffset)
+		return nil
+	}
+
+	// Split non-root nodes
+	for i := len(traversedNodes) - 1; i > 0; i-- {
+		node := traversedNodes[i]
+		nodeOffset := traversedOffsets[i]
+		parentNode := traversedNodes[i-1]
+		parentIndex := traversedIndices[i-1]
+		parentOffset := traversedOffsets[i-1]
+
+		if node.isOverPopulated(btree.maxElements()) {
+			newOffset := btree.getLastOffset()
+			newNode := btree.split(node, parentNode, parentIndex, newOffset)
+			btree.writeNodeToDisk(node, nodeOffset)
+			btree.writeNodeToDisk(newNode, newOffset)
+			if !parentNode.isOverPopulated(btree.maxElements()) {
+				btree.writeNodeToDisk(parentNode, parentOffset)
+			}
+		} else {
+			return nil
+		}
+	}
+
+	// Split root node
+	rootNode := traversedNodes[0]
+	rootOffset := traversedOffsets[0]
+	if rootNode.isOverPopulated(btree.maxElements()) {
+		newRootNode := new(Node[T])
+		newRootNode.childOffsets = []OffsetType{rootOffset}
+		newRootOffset := btree.getLastOffset()
+		btree.writeRootOffsetToDisk(newRootOffset)
+		btree.writeNodeToDisk(newRootNode, newRootOffset)
+
+		newOffset := btree.getLastOffset()
+		newNode := btree.split(rootNode, newRootNode, 0, newOffset)
+		btree.writeNodeToDisk(rootNode, rootOffset)
+		btree.writeNodeToDisk(newNode, newOffset)
+		btree.writeNodeToDisk(newRootNode, newRootOffset)
+	}
 	return nil
 }
 
-func (btree *BTree[T]) traverse(key KeyType) (bool, []Node[T], []int, []OffsetType, error) {
-	travarsedNodes := []Node[T]{}
-	travarsedIndices := []int{}
-	travarsedOffsets := []OffsetType{}
+func (btree *BTree[T]) split(node *Node[T], parentNode *Node[T], parentIndex int, newNodeOffset OffsetType) *Node[T] {
+	middleElement := node.elements[btree.minElements()]
+	newNode := new(Node[T])
+
+	newNode.elements = node.elements[btree.minElements()+1:]
+	node.elements = node.elements[:btree.minElements()]
+	if !node.isLeaf() {
+		newNode.childOffsets = node.childOffsets[btree.minElements()+1:]
+		node.childOffsets = node.childOffsets[:btree.minElements()+1]
+	}
+	parentNode.insertElement(middleElement, parentIndex)
+	parentNode.insertChildOffset(newNodeOffset, parentIndex+1)
+
+	return newNode
+}
+
+func (btree *BTree[T]) traverse(key KeyType) (bool, []*Node[T], []int, []OffsetType, error) {
+	traversedNodes := []*Node[T]{}
+	traversedIndices := []int{}
+	traversedOffsets := []OffsetType{}
 
 	offset := btree.getRootOffset()
 	node, err := btree.readNodeFromDisk(offset)
@@ -129,21 +228,22 @@ func (btree *BTree[T]) traverse(key KeyType) (bool, []Node[T], []int, []OffsetTy
 
 	isFound, index := node.traverse(key)
 	for {
-		travarsedNodes = append(travarsedNodes, *node)
-		travarsedIndices = append(travarsedIndices, index)
-		travarsedOffsets = append(travarsedOffsets, offset)
+		traversedNodes = append(traversedNodes, node)
+		traversedIndices = append(traversedIndices, index)
+		traversedOffsets = append(traversedOffsets, offset)
+
 		if isFound {
-			return true, travarsedNodes, travarsedIndices, travarsedOffsets, nil
+			return true, traversedNodes, traversedIndices, traversedOffsets, nil
 		}
 		if node.isLeaf() {
-			return false, travarsedNodes, travarsedIndices, travarsedOffsets, nil
+			return false, traversedNodes, traversedIndices, traversedOffsets, nil
 		}
-		offset := node.childOffsets[index]
+		offset = node.childOffsets[index]
 		node, err = btree.readNodeFromDisk(offset)
-		isFound, index = node.traverse(key)
 		if err != nil {
 			return false, nil, nil, nil, err
 		}
+		isFound, index = node.traverse(key)
 	}
 }
 
@@ -194,7 +294,7 @@ func (btree *BTree[T]) writeNodeToDisk(node *Node[T], offset OffsetType) error {
 func (btree *BTree[T]) writeRootOffsetToDisk(rootOffset OffsetType) error {
 	btree.fp.Seek(0, 0)
 	buff := make([]byte, OFFSET_SIZE_BYTE)
-	binary.BigEndian.PutUint64(buff, OFFSET_SIZE_BYTE)
+	binary.BigEndian.PutUint64(buff, uint64(rootOffset))
 	_, err := btree.fp.Write(buff)
 	defer btree.fp.Sync()
 	if err != nil {

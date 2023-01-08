@@ -11,7 +11,7 @@ func TestNode(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			item := new(Sample)
 			item.Int = i
-			element := Element[Sample]{item: item}
+			element := newElement(item)
 			node.elements = append(node.elements, element)
 		}
 		for i := 0; i < 4; i++ {
@@ -38,7 +38,7 @@ func TestNode(t *testing.T) {
 		for i := 0; i < maxItems-1; i++ {
 			item := new(Sample)
 			item.Int = i
-			element := Element[Sample]{item: item}
+			element := newElement(item)
 			node.elements = append(node.elements, element)
 		}
 		for i := 0; i < maxItems; i++ {

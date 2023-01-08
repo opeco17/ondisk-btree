@@ -2,10 +2,13 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
+	"strconv"
+	"strings"
 )
 
 type Node[T Item] struct {
-	elements     []Element[T]
+	elements     []*Element[T]
 	childOffsets []OffsetType
 }
 
@@ -18,8 +21,8 @@ func maxElementLengthByte[T Item](maxElements int) int {
 	return elementSize * (maxElements - 1)
 }
 
-func maxChildOffsetLengthByte[T Item](maxElement int) int {
-	return OFFSET_SIZE_BYTE * maxElement
+func maxChildOffsetLengthByte[T Item](maxElements int) int {
+	return OFFSET_SIZE_BYTE * maxElements
 }
 
 // Disk layout: {elementLength}{childOffsetLength}{element1}{element2}...{childOffset1}{childOffset2}...
@@ -61,7 +64,7 @@ func (node *Node[T]) deserialize(buff []byte, maxElements int) {
 	childOffsetLength := binary.BigEndian.Uint64(buff[lengthStartAt+LENGTH_IN_NODE_BYTE : lengthStartAt+LENGTH_IN_NODE_BYTE*2])
 
 	for i := 0; i < int(elementLength); i++ {
-		element := Element[T]{}
+		element := new(Element[T])
 		element.deserialize(buff[elementsStartAt+elementSize*i : elementsStartAt+elementSize*(i+1)])
 		node.elements = append(node.elements, element)
 	}
@@ -77,7 +80,7 @@ func (node *Node[T]) traverse(key KeyType) (bool, int) {
 		if key == element.getKey() {
 			return true, i
 		}
-		if key > element.getKey() {
+		if key < element.getKey() {
 			return false, i
 		}
 	}
@@ -86,4 +89,46 @@ func (node *Node[T]) traverse(key KeyType) (bool, int) {
 
 func (node *Node[T]) isLeaf() bool {
 	return len(node.childOffsets) == 0
+}
+
+func (node *Node[T]) isOverPopulated(maxElements int) bool {
+	return len(node.elements) > (maxElements - 1)
+}
+
+func (node *Node[T]) insertElement(element *Element[T], index int) {
+	if len(node.elements) == index {
+		node.elements = append(node.elements, element)
+	} else {
+		node.elements = append(node.elements[:index+1], node.elements[index:]...)
+		node.elements[index] = element
+	}
+}
+
+func (node *Node[T]) insertChildOffset(childOffset OffsetType, index int) {
+	if len(node.elements) == index {
+		node.childOffsets = append(node.childOffsets, childOffset)
+	} else {
+		node.childOffsets = append(node.childOffsets[:index+1], node.childOffsets[index:]...)
+		node.childOffsets[index] = childOffset
+	}
+}
+
+func (node *Node[T]) print(offset OffsetType, isRoot bool) {
+	ItemKeys := []string{}
+	childOffsets := []string{}
+	for _, element := range node.elements {
+		ItemKeys = append(ItemKeys, strconv.Itoa(int(element.getKey())))
+	}
+	for _, childOffset := range node.childOffsets {
+		childOffsets = append(childOffsets, strconv.Itoa(int(childOffset)))
+	}
+
+	if isRoot {
+		fmt.Printf("Offset: %s (root)\n", strconv.Itoa(int(offset)))
+	} else {
+		fmt.Printf("Offset: %s\n", strconv.Itoa(int(offset)))
+	}
+	fmt.Printf("| Item Keys: %s\n", strings.Join(ItemKeys, ","))
+	fmt.Printf("| Child Offsets: %s\n", strings.Join(childOffsets, ","))
+	fmt.Println("+--------------------")
 }
