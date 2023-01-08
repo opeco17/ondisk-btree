@@ -106,6 +106,22 @@ func (btree *BTree[T]) Delete(key KeyType) error {
 	if !btree.isOpen {
 		return errors.New("Tree is already closed")
 	}
+	isFound, traversedNodes, traversedIndices, traversedOffsets, err := btree.traverse(key)
+	if err != nil {
+		return err
+	}
+	if !isFound {
+		return errors.New(fmt.Sprintf("Item with key %d is not found", key))
+	}
+
+	node := traversedNodes[len(traversedNodes)-1]
+	index := traversedIndices[len(traversedNodes)-1]
+	offset := traversedOffsets[len(traversedNodes)-1]
+
+	node.elements[index].isClosed = true
+	if err = btree.writeNodeToDisk(node, offset); err != nil {
+		return err
+	}
 	return nil
 }
 
