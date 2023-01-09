@@ -25,7 +25,7 @@ func (book Book) GetKey() int64 {
 
 func main() {
 	btree, _ := btree.New[Book](btree.DEFAULT_DATA_PATH, btree.DEFAULT_DEGREE)
-    defer btree.Close()
+	defer btree.Close()
 
 	btree.Put(&Book{ID: 0, Name: "Database Internals", Author: "Alex Petrov"})
 	btree.Put(&Book{ID: 1, Name: "Designing Data-Intensive Applications", Author: "Martin Kleppmann"})
