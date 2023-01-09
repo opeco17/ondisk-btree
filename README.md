@@ -10,6 +10,10 @@ Note that validation is minimum to keep simplicity of source code.
 
 ## Usage
 
+```sh
+go get -u github.com/opeco17/ondisk-btree
+```
+
 ```go
 import btree "github.com/opeco17/ondisk-btree"
 
