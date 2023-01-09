@@ -19,8 +19,12 @@ func newNode[T Item](offset OffsetType) *Node[T] {
 	return node
 }
 
-func calNodeSize[T Item](maxElements int) int {
-	return LENGTH_IN_NODE_BYTE + LENGTH_IN_NODE_BYTE + maxElementLengthByte[T](maxElements) + maxChildOffsetLengthByte[T](maxElements)
+func nodeLenthByte[T Item](maxElements int) int {
+	return metadataLengthByte() + maxElementLengthByte[T](maxElements) + maxChildOffsetLengthByte[T](maxElements)
+}
+
+func metadataLengthByte() int {
+	return LENGTH_IN_NODE_BYTE + LENGTH_IN_NODE_BYTE
 }
 
 func maxElementLengthByte[T Item](maxElements int) int {
@@ -34,52 +38,52 @@ func maxChildOffsetLengthByte[T Item](maxElements int) int {
 
 // Disk layout: {elementLength}{childOffsetLength}{element1}{element2}...{childOffset1}{childOffset2}...
 func (node *Node[T]) serialize(maxElements int) []byte {
-	buff := []byte{}
+	buff := make([]byte, nodeLenthByte[T](maxElements))
 
-	lengthBuff := make([]byte, LENGTH_IN_NODE_BYTE*2)
-	binary.BigEndian.PutUint64(lengthBuff[0:LENGTH_IN_NODE_BYTE], uint64(len(node.elements)))
-	binary.BigEndian.PutUint64(lengthBuff[LENGTH_IN_NODE_BYTE:LENGTH_IN_NODE_BYTE*2], uint64(len(node.childOffsets)))
+	startAt := 0
 
-	elementBuff := make([]byte, maxElementLengthByte[T](maxElements))
+	binary.BigEndian.PutUint64(buff[startAt:startAt+LENGTH_IN_NODE_BYTE], uint64(len(node.elements)))
+	binary.BigEndian.PutUint64(buff[startAt+LENGTH_IN_NODE_BYTE:startAt+LENGTH_IN_NODE_BYTE*2], uint64(len(node.childOffsets)))
+	startAt += metadataLengthByte()
+
 	elementCount := 0
 	for _, element := range node.elements {
 		for _, b := range element.serialize() {
-			elementBuff[elementCount] = b
+			buff[startAt+elementCount] = b
 			elementCount += 1
 		}
 	}
+	startAt += maxElementLengthByte[T](maxElements)
 
-	childOffsetBuff := make([]byte, maxChildOffsetLengthByte[T](maxElements))
 	for i, childOffset := range node.childOffsets {
-		binary.BigEndian.PutUint64(childOffsetBuff[OFFSET_SIZE_BYTE*i:OFFSET_SIZE_BYTE*(i+1)], uint64(childOffset))
+		binary.BigEndian.PutUint64(buff[startAt+OFFSET_SIZE_BYTE*i:startAt+OFFSET_SIZE_BYTE*(i+1)], uint64(childOffset))
 	}
+	startAt += maxChildOffsetLengthByte[T](maxElements)
 
-	buff = append(buff, lengthBuff...)
-	buff = append(buff, elementBuff...)
-	buff = append(buff, childOffsetBuff...)
 	return buff
 }
 
 func (node *Node[T]) deserialize(buff []byte, maxElements int) {
 	elementSize := calElementSize[T]()
 
-	lengthStartAt := 0
-	elementsStartAt := LENGTH_IN_NODE_BYTE * 2
-	childOffsetsStartAt := LENGTH_IN_NODE_BYTE*2 + maxElementLengthByte[T](maxElements)
+	startAt := 0
 
-	elementLength := binary.BigEndian.Uint64(buff[lengthStartAt : lengthStartAt+LENGTH_IN_NODE_BYTE])
-	childOffsetLength := binary.BigEndian.Uint64(buff[lengthStartAt+LENGTH_IN_NODE_BYTE : lengthStartAt+LENGTH_IN_NODE_BYTE*2])
+	elementLength := binary.BigEndian.Uint64(buff[startAt : startAt+LENGTH_IN_NODE_BYTE])
+	childOffsetLength := binary.BigEndian.Uint64(buff[startAt+LENGTH_IN_NODE_BYTE : startAt+LENGTH_IN_NODE_BYTE*2])
+	startAt += metadataLengthByte()
 
 	for i := 0; i < int(elementLength); i++ {
 		element := new(Element[T])
-		element.deserialize(buff[elementsStartAt+elementSize*i : elementsStartAt+elementSize*(i+1)])
+		element.deserialize(buff[startAt+elementSize*i : startAt+elementSize*(i+1)])
 		node.elements = append(node.elements, element)
 	}
+	startAt += maxElementLengthByte[T](maxElements)
 
 	for i := 0; i < int(childOffsetLength); i++ {
-		childOffset := OffsetType(binary.BigEndian.Uint64(buff[childOffsetsStartAt+OFFSET_SIZE_BYTE*i : childOffsetsStartAt+OFFSET_SIZE_BYTE*(i+1)]))
+		childOffset := OffsetType(binary.BigEndian.Uint64(buff[startAt+OFFSET_SIZE_BYTE*i : startAt+OFFSET_SIZE_BYTE*(i+1)]))
 		node.childOffsets = append(node.childOffsets, childOffset)
 	}
+	startAt += maxChildOffsetLengthByte[T](maxElements)
 }
 
 func (node *Node[T]) traverse(key KeyType) (bool, int) {

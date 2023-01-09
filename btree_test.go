@@ -6,7 +6,7 @@ import (
 )
 
 func TestBTree(t *testing.T) {
-	t.Run("Test put, delete and get (from -50 to 50)", func(t *testing.T) {
+	t.Run("Put (-50 to 50) -> Get -> Delete (-10 to 10) -> Get -> Put (-10 to 10) -> Get", func(t *testing.T) {
 		os.Remove(DEFAULT_DATA_PATH)
 
 		begin := -50
@@ -18,6 +18,7 @@ func TestBTree(t *testing.T) {
 		if err != nil {
 			t.Errorf("Error should not be raised")
 		}
+
 		// Put
 		for i := begin; i <= end; i++ {
 			item := new(Sample)
@@ -64,8 +65,29 @@ func TestBTree(t *testing.T) {
 				}
 			}
 		}
+
+		// Put
+		for i := deleteBegin; i <= deleteEnd; i++ {
+			item := new(Sample)
+			item.Int = i
+			if err = btree.Put(item); err != nil {
+				t.Errorf("Error should not be raised")
+			}
+		}
+
+		// Get
+		for i := begin; i <= end; i++ {
+			item, err := btree.Get(KeyType(i))
+			if err != nil {
+				t.Errorf("Error should not be raised")
+			}
+			if item.Int != i {
+				t.Errorf("item.Int should be %d", i)
+			}
+		}
+		btree.Close()
 	})
-	t.Run("Test put, delete and get (from 50 to -50)", func(t *testing.T) {
+	t.Run("Put (50 to -50) -> Get -> Delete (10 to -10) -> Get -> Put (10 to -10) -> Get", func(t *testing.T) {
 		os.Remove(DEFAULT_DATA_PATH)
 
 		begin := 50
@@ -77,6 +99,7 @@ func TestBTree(t *testing.T) {
 		if err != nil {
 			t.Errorf("Error should not be raised")
 		}
+
 		// Put
 		for i := begin; i >= end; i-- {
 			item := new(Sample)
@@ -123,5 +146,26 @@ func TestBTree(t *testing.T) {
 				}
 			}
 		}
+
+		// Put
+		for i := deleteBegin; i >= deleteEnd; i-- {
+			item := new(Sample)
+			item.Int = i
+			if err = btree.Put(item); err != nil {
+				t.Errorf("Error should not be raised")
+			}
+		}
+
+		// Get
+		for i := begin; i >= end; i-- {
+			item, err := btree.Get(KeyType(i))
+			if err != nil {
+				t.Errorf("Error should not be raised")
+			}
+			if item.Int != i {
+				t.Errorf("item.Int should be %d", i)
+			}
+		}
+		btree.Close()
 	})
 }
