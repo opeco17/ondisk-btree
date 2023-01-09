@@ -10,7 +10,7 @@ const DEFAULT_DATA_PATH = "btree.bin"
 const OFFSET_SIZE_BYTE = 8
 const LENGTH_IN_NODE_BYTE = 8
 const DEFAULT_DEGREE = 3
-const STRING_SIZE_BYTE = 256
+const DEFAULT_STRING_MAX_LENGTH = 256
 
 var AVAILABLE_TYPES = []reflect.Kind{
 	reflect.Int,

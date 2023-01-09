@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"golang.org/x/exp/slices"
@@ -19,6 +20,7 @@ func serializeItem[T Item](item *T) []byte {
 	buff := make([]byte, calItemSize[T]())
 	buffPtr := 0
 	itemVal := reflect.ValueOf(item).Elem()
+	itemType := reflect.TypeOf(*item)
 	for i := 0; i < itemVal.NumField(); i++ {
 		field := itemVal.FieldByIndex([]int{i})
 		fieldType := field.Type().Kind()
@@ -63,7 +65,8 @@ func serializeItem[T Item](item *T) []byte {
 			}
 			buffPtr += 1
 		} else if fieldType == reflect.String {
-			for _, each := range []byte(padSpaces(field.String())) {
+			maxLength, _ := getMaxLength(itemType.Field(i).Tag.Get("maxLength"))
+			for _, each := range []byte(padSpaces(field.String(), maxLength)) {
 				buff[buffPtr] = each
 				buffPtr += 1
 			}
@@ -75,6 +78,7 @@ func serializeItem[T Item](item *T) []byte {
 func deserializeItem[T Item](buff []byte) *T {
 	item := new(T)
 	itemVal := reflect.ValueOf(item).Elem()
+	itemType := reflect.TypeOf(*item)
 	var buffPtr uint64 = 0
 	for i := 0; i < itemVal.NumField(); i++ {
 		field := itemVal.FieldByIndex([]int{i})
@@ -121,8 +125,9 @@ func deserializeItem[T Item](buff []byte) *T {
 			}
 			buffPtr += 1
 		} else if fieldType == reflect.String {
-			field.SetString(strings.TrimSpace(string(buff[buffPtr : buffPtr+STRING_SIZE_BYTE])))
-			buffPtr += STRING_SIZE_BYTE
+			maxLength, _ := getMaxLength(itemType.Field(i).Tag.Get("maxLength"))
+			field.SetString(strings.TrimSpace(string(buff[buffPtr : buffPtr+uint64(maxLength)])))
+			buffPtr += uint64(maxLength)
 		}
 	}
 	return item
@@ -130,7 +135,9 @@ func deserializeItem[T Item](buff []byte) *T {
 
 func calItemSize[T Item]() int {
 	size := 0
-	itemVal := reflect.ValueOf(new(T)).Elem()
+	item := new(T)
+	itemVal := reflect.ValueOf(item).Elem()
+	itemType := reflect.TypeOf(*item)
 	for i := 0; i < itemVal.NumField(); i++ {
 		field := itemVal.FieldByIndex([]int{i})
 		fieldType := field.Type().Kind()
@@ -138,7 +145,8 @@ func calItemSize[T Item]() int {
 		if !field.CanSet() {
 			continue
 		} else if fieldType == reflect.String {
-			size += STRING_SIZE_BYTE
+			maxLength, _ := getMaxLength(itemType.Field(i).Tag.Get("maxLength"))
+			size += maxLength
 		} else {
 			size += int(fieldSize)
 		}
@@ -161,24 +169,54 @@ func isValidItemFields[T Item]() error {
 	return nil
 }
 
-func isValidStringLength[T Item](item *T) error {
+func isValidStringLabel[T Item]() error {
+	item := new(T)
 	itemVal := reflect.ValueOf(item).Elem()
+	itemType := reflect.TypeOf(*item)
 	for i := 0; i < itemVal.NumField(); i++ {
-		field := itemVal.FieldByIndex([]int{i})
-		if !field.CanSet() {
-			continue
-		}
-		if field.Type().Kind() == reflect.String && (len(field.String()) > STRING_SIZE_BYTE) {
-			return errors.New(fmt.Sprintf("Length of string field should be less than %d", STRING_SIZE_BYTE))
+		maxLengthLabel := itemType.Field(i).Tag.Get("maxLength")
+		if _, err := getMaxLength(maxLengthLabel); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func padSpaces(v string) string {
-	numberOfPaddings := STRING_SIZE_BYTE - len(v)
+func isValidStringLength[T Item](item *T) error {
+	itemVal := reflect.ValueOf(item).Elem()
+	itemType := reflect.TypeOf(*item)
+	for i := 0; i < itemVal.NumField(); i++ {
+		field := itemVal.FieldByIndex([]int{i})
+		if !field.CanSet() {
+			continue
+		}
+		maxLength, _ := getMaxLength(itemType.Field(i).Tag.Get("maxLength"))
+		if field.Type().Kind() == reflect.String && (len(field.String()) > maxLength) {
+			return errors.New(fmt.Sprintf("Length of string field should be less than %d", maxLength))
+		}
+	}
+	return nil
+}
+
+func padSpaces(v string, maxLength int) string {
+	numberOfPaddings := maxLength - len(v)
 	for i := 0; i < numberOfPaddings; i++ {
 		v += " "
 	}
 	return v
+}
+
+func getMaxLength(label string) (int, error) {
+	if label == "" {
+		return DEFAULT_STRING_MAX_LENGTH, nil
+	} else {
+		maxLength, err := strconv.Atoi(label)
+		if err != nil {
+			return 0, errors.New("maxLength should be number")
+		}
+		if maxLength <= 0 {
+			return 0, errors.New("maxLength should be greater than 0")
+		}
+		return maxLength, nil
+	}
 }

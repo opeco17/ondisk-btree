@@ -25,6 +25,9 @@ func New[T Item](path string, degree int) (*BTree[T], error) {
 	if err := isValidItemFields[T](); err != nil {
 		return nil, err
 	}
+	if err := isValidStringLabel[T](); err != nil {
+		return nil, err
+	}
 
 	btree := new(BTree[T])
 	btree.path = path
