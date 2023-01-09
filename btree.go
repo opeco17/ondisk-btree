@@ -42,8 +42,8 @@ func New[T Item](path string, degree int) (*BTree[T], error) {
 			return nil, err
 		}
 
-		rootNode := new(Node[T])
-		if err = btree.writeNodeToDisk(rootNode, OFFSET_SIZE_BYTE); err != nil {
+		rootNode := newNode[T](OFFSET_SIZE_BYTE)
+		if err = btree.writeNodeToDisk(rootNode); err != nil {
 			return nil, err
 		}
 	}
@@ -65,7 +65,7 @@ func (btree *BTree[T]) Get(key KeyType) (*T, error) {
 		return nil, errors.New("Tree is already closed")
 	}
 
-	isFound, traversedNodes, traversedIndices, _, err := btree.traverse(key)
+	isFound, traversedNodes, traversedIndices, err := btree.traverse(key)
 	if err != nil {
 		return nil, err
 	}
@@ -85,17 +85,17 @@ func (btree *BTree[T]) Put(item *T) error {
 	}
 	element := newElement(item)
 
-	isFound, traversedNodes, traversedIndices, traversedOffsets, err := btree.traverse(element.getKey())
+	isFound, traversedNodes, traversedIndices, err := btree.traverse(element.getKey())
 	if err != nil {
 		return err
 	}
 	if isFound {
-		if err = btree.update(element, traversedNodes, traversedIndices, traversedOffsets); err != nil {
+		if err = btree.update(element, traversedNodes, traversedIndices); err != nil {
 			return err
 		}
 		return nil
 	} else {
-		if err = btree.insert(element, traversedNodes, traversedIndices, traversedOffsets); err != nil {
+		if err = btree.insert(element, traversedNodes, traversedIndices); err != nil {
 			return err
 		}
 		return nil
@@ -106,7 +106,7 @@ func (btree *BTree[T]) Delete(key KeyType) error {
 	if !btree.isOpen {
 		return errors.New("Tree is already closed")
 	}
-	isFound, traversedNodes, traversedIndices, traversedOffsets, err := btree.traverse(key)
+	isFound, traversedNodes, traversedIndices, err := btree.traverse(key)
 	if err != nil {
 		return err
 	}
@@ -116,10 +116,9 @@ func (btree *BTree[T]) Delete(key KeyType) error {
 
 	node := traversedNodes[len(traversedNodes)-1]
 	index := traversedIndices[len(traversedNodes)-1]
-	offset := traversedOffsets[len(traversedNodes)-1]
 
 	node.elements[index].isClosed = true
-	if err = btree.writeNodeToDisk(node, offset); err != nil {
+	if err = btree.writeNodeToDisk(node); err != nil {
 		return err
 	}
 	return nil
@@ -151,45 +150,41 @@ func (btree *BTree[T]) show(offset OffsetType, isRoot bool) error {
 	return nil
 }
 
-func (btree *BTree[T]) update(element *Element[T], traversedNodes []*Node[T], traversedIndices []int, traversedOffsets []OffsetType) error {
+func (btree *BTree[T]) update(element *Element[T], traversedNodes []*Node[T], traversedIndices []int) error {
 	numberOfTraverse := len(traversedNodes)
 	node := traversedNodes[numberOfTraverse-1]
 	index := traversedIndices[numberOfTraverse-1]
-	offset := traversedOffsets[numberOfTraverse-1]
 
 	node.elements[index] = element
-	if err := btree.writeNodeToDisk(node, offset); err != nil {
+	if err := btree.writeNodeToDisk(node); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (btree *BTree[T]) insert(element *Element[T], traversedNodes []*Node[T], traversedIndices []int, traversedOffsets []OffsetType) error {
+func (btree *BTree[T]) insert(element *Element[T], traversedNodes []*Node[T], traversedIndices []int) error {
 	leafNode := traversedNodes[len(traversedNodes)-1]
 	leafIndex := traversedIndices[len(traversedNodes)-1]
-	leafOffset := traversedOffsets[len(traversedNodes)-1]
 	leafNode.insertElement(element, leafIndex)
 
 	if !leafNode.isOverPopulated(btree.maxElements()) {
-		btree.writeNodeToDisk(leafNode, leafOffset)
+		btree.writeNodeToDisk(leafNode)
 		return nil
 	}
 
 	// Split non-root nodes
 	for i := len(traversedNodes) - 1; i > 0; i-- {
 		node := traversedNodes[i]
-		nodeOffset := traversedOffsets[i]
 		parentNode := traversedNodes[i-1]
 		parentIndex := traversedIndices[i-1]
-		parentOffset := traversedOffsets[i-1]
 
 		if node.isOverPopulated(btree.maxElements()) {
 			newOffset := btree.getLastOffset()
 			newNode := btree.split(node, parentNode, parentIndex, newOffset)
-			btree.writeNodeToDisk(node, nodeOffset)
-			btree.writeNodeToDisk(newNode, newOffset)
+			btree.writeNodeToDisk(node)
+			btree.writeNodeToDisk(newNode)
 			if !parentNode.isOverPopulated(btree.maxElements()) {
-				btree.writeNodeToDisk(parentNode, parentOffset)
+				btree.writeNodeToDisk(parentNode)
 			}
 		} else {
 			return nil
@@ -198,26 +193,25 @@ func (btree *BTree[T]) insert(element *Element[T], traversedNodes []*Node[T], tr
 
 	// Split root node
 	rootNode := traversedNodes[0]
-	rootOffset := traversedOffsets[0]
 	if rootNode.isOverPopulated(btree.maxElements()) {
-		newRootNode := new(Node[T])
-		newRootNode.childOffsets = []OffsetType{rootOffset}
 		newRootOffset := btree.getLastOffset()
+		newRootNode := newNode[T](newRootOffset)
+		newRootNode.childOffsets = []OffsetType{rootNode.offset}
 		btree.writeRootOffsetToDisk(newRootOffset)
-		btree.writeNodeToDisk(newRootNode, newRootOffset)
+		btree.writeNodeToDisk(newRootNode)
 
 		newOffset := btree.getLastOffset()
 		newNode := btree.split(rootNode, newRootNode, 0, newOffset)
-		btree.writeNodeToDisk(rootNode, rootOffset)
-		btree.writeNodeToDisk(newNode, newOffset)
-		btree.writeNodeToDisk(newRootNode, newRootOffset)
+		btree.writeNodeToDisk(rootNode)
+		btree.writeNodeToDisk(newNode)
+		btree.writeNodeToDisk(newRootNode)
 	}
 	return nil
 }
 
 func (btree *BTree[T]) split(node *Node[T], parentNode *Node[T], parentIndex int, newNodeOffset OffsetType) *Node[T] {
 	middleElement := node.elements[btree.minElements()]
-	newNode := new(Node[T])
+	newNode := newNode[T](newNodeOffset)
 
 	newNode.elements = node.elements[btree.minElements()+1:]
 	node.elements = node.elements[:btree.minElements()]
@@ -231,33 +225,31 @@ func (btree *BTree[T]) split(node *Node[T], parentNode *Node[T], parentIndex int
 	return newNode
 }
 
-func (btree *BTree[T]) traverse(key KeyType) (bool, []*Node[T], []int, []OffsetType, error) {
+func (btree *BTree[T]) traverse(key KeyType) (bool, []*Node[T], []int, error) {
 	traversedNodes := []*Node[T]{}
 	traversedIndices := []int{}
-	traversedOffsets := []OffsetType{}
 
 	offset := btree.getRootOffset()
 	node, err := btree.readNodeFromDisk(offset)
 	if err != nil {
-		return false, nil, nil, nil, err
+		return false, nil, nil, err
 	}
 
 	isFound, index := node.traverse(key)
 	for {
 		traversedNodes = append(traversedNodes, node)
 		traversedIndices = append(traversedIndices, index)
-		traversedOffsets = append(traversedOffsets, offset)
 
 		if isFound {
-			return true, traversedNodes, traversedIndices, traversedOffsets, nil
+			return true, traversedNodes, traversedIndices, nil
 		}
 		if node.isLeaf() {
-			return false, traversedNodes, traversedIndices, traversedOffsets, nil
+			return false, traversedNodes, traversedIndices, nil
 		}
 		offset = node.childOffsets[index]
 		node, err = btree.readNodeFromDisk(offset)
 		if err != nil {
-			return false, nil, nil, nil, err
+			return false, nil, nil, err
 		}
 		isFound, index = node.traverse(key)
 	}
@@ -291,14 +283,14 @@ func (btree *BTree[T]) readNodeFromDisk(offset OffsetType) (*Node[T], error) {
 	btree.fp.Seek(offset, 0)
 	btree.fp.Read(buff)
 
-	node := new(Node[T])
+	node := newNode[T](offset)
 	node.deserialize(buff, btree.maxElements())
 	return node, nil
 }
 
-func (btree *BTree[T]) writeNodeToDisk(node *Node[T], offset OffsetType) error {
+func (btree *BTree[T]) writeNodeToDisk(node *Node[T]) error {
 	buff := node.serialize(btree.maxElements())
-	btree.fp.Seek(offset, 0)
+	btree.fp.Seek(node.offset, 0)
 	_, err := btree.fp.Write(buff)
 	defer btree.fp.Sync()
 	if err != nil {

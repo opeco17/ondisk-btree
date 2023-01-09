@@ -8,8 +8,15 @@ import (
 )
 
 type Node[T Item] struct {
+	offset       OffsetType
 	elements     []*Element[T]
 	childOffsets []OffsetType
+}
+
+func newNode[T Item](offset OffsetType) *Node[T] {
+	node := new(Node[T])
+	node.offset = offset
+	return node
 }
 
 func calNodeSize[T Item](maxElements int) int {
