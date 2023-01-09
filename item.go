@@ -65,7 +65,7 @@ func serializeItem[T Item](item *T) []byte {
 			}
 			buffPtr += 1
 		} else if fieldType == reflect.String {
-			maxLength, _ := getMaxLength(itemType.Field(i).Tag.Get("maxLength"))
+			maxLength, _ := getMaxStringLength(itemType.Field(i).Tag.Get("maxLength"))
 			for _, each := range []byte(padSpaces(field.String(), maxLength)) {
 				buff[buffPtr] = each
 				buffPtr += 1
@@ -125,7 +125,7 @@ func deserializeItem[T Item](buff []byte) *T {
 			}
 			buffPtr += 1
 		} else if fieldType == reflect.String {
-			maxLength, _ := getMaxLength(itemType.Field(i).Tag.Get("maxLength"))
+			maxLength, _ := getMaxStringLength(itemType.Field(i).Tag.Get("maxLength"))
 			field.SetString(strings.TrimSpace(string(buff[buffPtr : buffPtr+uint64(maxLength)])))
 			buffPtr += uint64(maxLength)
 		}
@@ -145,7 +145,7 @@ func calItemSize[T Item]() int {
 		if !field.CanSet() {
 			continue
 		} else if fieldType == reflect.String {
-			maxLength, _ := getMaxLength(itemType.Field(i).Tag.Get("maxLength"))
+			maxLength, _ := getMaxStringLength(itemType.Field(i).Tag.Get("maxLength"))
 			size += maxLength
 		} else {
 			size += int(fieldSize)
@@ -175,7 +175,7 @@ func isValidStringLabel[T Item]() error {
 	itemType := reflect.TypeOf(*item)
 	for i := 0; i < itemVal.NumField(); i++ {
 		maxLengthLabel := itemType.Field(i).Tag.Get("maxLength")
-		if _, err := getMaxLength(maxLengthLabel); err != nil {
+		if _, err := getMaxStringLength(maxLengthLabel); err != nil {
 			return err
 		}
 	}
@@ -190,7 +190,7 @@ func isValidStringLength[T Item](item *T) error {
 		if !field.CanSet() {
 			continue
 		}
-		maxLength, _ := getMaxLength(itemType.Field(i).Tag.Get("maxLength"))
+		maxLength, _ := getMaxStringLength(itemType.Field(i).Tag.Get("maxLength"))
 		if field.Type().Kind() == reflect.String && (len(field.String()) > maxLength) {
 			return errors.New(fmt.Sprintf("Length of string field should be less than %d", maxLength))
 		}
@@ -206,7 +206,7 @@ func padSpaces(v string, maxLength int) string {
 	return v
 }
 
-func getMaxLength(label string) (int, error) {
+func getMaxStringLength(label string) (int, error) {
 	if label == "" {
 		return DEFAULT_STRING_MAX_LENGTH, nil
 	} else {

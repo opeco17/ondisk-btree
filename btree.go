@@ -20,7 +20,7 @@ func New[T Item](path string, degree int) (*BTree[T], error) {
 		return nil, errors.New("Parameter 'path' should not be empty")
 	}
 	if degree <= 1 {
-		return nil, errors.New("Parameter 'degree' should greater than 1")
+		return nil, errors.New("Parameter 'degree' should be greater than 1")
 	}
 	if err := isValidItemFields[T](); err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func New[T Item](path string, degree int) (*BTree[T], error) {
 
 	fp, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0660)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Failed to open data file at %s", path))
+		return nil, errors.New(fmt.Sprintf("Failed to open or create data file at %s", path))
 	}
 	btree.fp = fp
 	btree.isOpen = true

@@ -49,8 +49,8 @@ func TestItem(t *testing.T) {
 			t.Errorf("paddedString should be 'hello     '")
 		}
 	})
-	t.Run("Test getMaxLength", func(t *testing.T) {
-		maxLength, err := getMaxLength("")
+	t.Run("Test getMaxStringLength", func(t *testing.T) {
+		maxLength, err := getMaxStringLength("")
 		if err != nil {
 			t.Errorf("Error should not be raised")
 		}
@@ -58,7 +58,7 @@ func TestItem(t *testing.T) {
 			t.Errorf("maxLength should be default value")
 		}
 
-		maxLength, err = getMaxLength("100")
+		maxLength, err = getMaxStringLength("100")
 		if err != nil {
 			t.Errorf("Error should not be raised")
 		}
@@ -66,17 +66,17 @@ func TestItem(t *testing.T) {
 			t.Errorf("maxLength should be 100")
 		}
 
-		maxLength, err = getMaxLength("0")
+		maxLength, err = getMaxStringLength("0")
 		if err == nil {
 			t.Errorf("Error should be raised")
 		}
 
-		maxLength, err = getMaxLength("-1")
+		maxLength, err = getMaxStringLength("-1")
 		if err == nil {
 			t.Errorf("Error should be raised")
 		}
 
-		maxLength, err = getMaxLength("hello")
+		maxLength, err = getMaxStringLength("hello")
 		if err == nil {
 			t.Errorf("Error should be raised")
 		}
