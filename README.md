@@ -8,11 +8,13 @@ The implementation is mainly inspired by [Database Internals (2019 Alex Petrov)]
 
 Note that validation is minimum to keep simplicity of source code.
 
-## Usage
+## Install
 
 ```sh
 go get -u github.com/opeco17/ondisk-btree
 ```
+
+## Usage
 
 ```go
 import btree "github.com/opeco17/ondisk-btree"
