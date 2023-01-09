@@ -9,7 +9,26 @@ The implementation is mainly inspired by [Database Internals (2019 Alex Petrov)]
 ## Usage
 
 ```go
-import ondisk-btree
+import btree "github.com/opeco17/ondisk-btree"
 
-btree := New()
+type Book struct {
+	ID     int
+	Name   string
+	Author string `maxLength:"64"`
+}
+
+func (book Book) GetKey() int64 {
+	return int64(book.ID)
+}
+
+func main() {
+	btree, _ := btree.New[Book](btree.DEFAULT_DATA_PATH, btree.DEFAULT_DEGREE)
+
+	btree.Put(&Book{ID: 0, Name: "Database Internals", Author: "Alex Petrov"})
+	btree.Put(&Book{ID: 1, Name: "Designing Data-Intensive Applications", Author: "Martin Kleppmann"})
+
+	btree.Delete(1)
+
+	book, _ := btree.Get(0)
+}
 ```
