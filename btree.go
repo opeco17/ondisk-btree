@@ -48,7 +48,7 @@ func New[T Item](path string, degree int) (*BTree[T], error) {
 		}
 	}
 
-	btree.nodeSize = nodeLenthByte[T](btree.maxElements())
+	btree.nodeSize = nodSizeByte[T](btree.maxElements())
 
 	return btree, nil
 }
@@ -199,7 +199,7 @@ func (btree *BTree[T]) insert(element *Element[T], traversedNodes []*Node[T], tr
 		newRootNode := newNode[T](newRootNodeOffset)
 		newRootNode.childOffsets = []OffsetType{rootNode.offset}
 
-		newNodeOffset := newRootNodeOffset + OffsetType(nodeLenthByte[T](btree.maxElements()))
+		newNodeOffset := newRootNodeOffset + OffsetType(nodSizeByte[T](btree.maxElements()))
 		newNode := btree.split(rootNode, newRootNode, 0, newNodeOffset)
 
 		btree.writeRootOffsetToDisk(newRootNodeOffset)
@@ -278,7 +278,7 @@ func (btree *BTree[T]) getRootOffset() OffsetType {
 
 func (btree *BTree[T]) readNodeFromDisk(offset OffsetType) (*Node[T], error) {
 	btree.fp.Seek(offset, 0)
-	nodeSize := nodeLenthByte[T](btree.maxElements())
+	nodeSize := nodSizeByte[T](btree.maxElements())
 	buff := make([]byte, nodeSize)
 
 	btree.fp.Seek(offset, 0)
