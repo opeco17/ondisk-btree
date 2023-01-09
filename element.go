@@ -1,4 +1,4 @@
-package main
+package btree
 
 type Element[T Item] struct {
 	item     *T

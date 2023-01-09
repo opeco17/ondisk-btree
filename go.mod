@@ -1,4 +1,4 @@
-module ondisk-btree
+module github.com/opeco17/ondisk-btree
 
 go 1.18
 
